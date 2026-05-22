@@ -42,11 +42,14 @@ function buildWhatsAppMessage(
   total: number
 ): string {
   const lines = items
-    .map(
-      item =>
-        `• ${item.name} x${item.quantity} — $${(item.price * item.quantity).toLocaleString('es-AR')}`
-    )
+    .map(item => {
+      const details = [item.coffeeType, item.weight, item.grind].filter(Boolean).join(' · ')
+      const detailLine = details ? `\n  ${details}` : ''
+
+      return `• ${item.name} x${item.quantity} — $${item.subtotal.toLocaleString('es-AR')}${detailLine}`
+    })
     .join('\n')
+
   return `*Pedido ARTISAN Coffee* ☕\n\n${lines}\n\n*Total: $${total.toLocaleString('es-AR')}*\n\nHecho desde artisancoffee.com`
 }
 
@@ -147,18 +150,23 @@ export function CartDrawer() {
                           <p className="mt-1 text-xs text-muted-foreground">
                             ${item.price.toLocaleString('es-AR')} c/u
                           </p>
+                          {item.coffeeType && (
+                            <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+                              {item.coffeeType} · {item.weight} · {item.grind ?? 'granos enteros'}
+                            </p>
+                          )}
                         </div>
 
                         <div className="flex flex-col items-end justify-between gap-2">
                           {/* Subtotal */}
                           <span className="font-serif text-sm font-medium text-primary">
-                            ${(item.price * item.quantity).toLocaleString('es-AR')}
+                            ${item.subtotal.toLocaleString('es-AR')}
                           </span>
 
                           {/* Controls */}
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => updateQuantity(item.name, -1)}
+                              onClick={() => updateQuantity(item.id, -1)}
                               className="flex h-6 w-6 items-center justify-center rounded-full border border-border text-xs transition-colors hover:border-primary hover:text-primary"
                               aria-label="Restar uno"
                             >
@@ -168,14 +176,14 @@ export function CartDrawer() {
                               {item.quantity}
                             </span>
                             <button
-                              onClick={() => updateQuantity(item.name, 1)}
+                              onClick={() => updateQuantity(item.id, 1)}
                               className="flex h-6 w-6 items-center justify-center rounded-full border border-border text-xs transition-colors hover:border-primary hover:text-primary"
                               aria-label="Sumar uno"
                             >
                               +
                             </button>
                             <button
-                              onClick={() => removeItem(item.name)}
+                              onClick={() => removeItem(item.id)}
                               className="ml-1 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground/50 transition-colors hover:text-destructive"
                               aria-label="Eliminar producto"
                             >

@@ -1,5 +1,8 @@
 export { Navbar } from './navbar'
 export { HeroSection } from './hero-section'
+export { AboutSection } from './about-section'
+export { ExperienceSection } from './experience-section'
+export { StoreSection } from './store-section'
 export { MenuSection } from './menu-section'
 export { ReservationSection } from './reservation-section'
 export { ReservationModal } from './reservation-modal'

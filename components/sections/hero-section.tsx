@@ -108,7 +108,7 @@ export function HeroSection() {
                 />
               </svg>
             </PremiumButton>
-            <PremiumButton variant="outline" size="lg" href="#nosotros">
+            <PremiumButton variant="outline" size="lg" href="/nosotros">
               {HERO_CONTENT.cta.secondary}
             </PremiumButton>
           </motion.div>

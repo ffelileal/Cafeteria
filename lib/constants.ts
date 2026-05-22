@@ -1,9 +1,10 @@
 // Navigation links
 export const NAV_LINKS = [
-  { href: '#inicio', label: 'Inicio' },
+  { href: '/', label: 'Inicio' },
   { href: '/menu', label: 'Menú' },
-  { href: '#nosotros', label: 'Nosotros' },
-  { href: '#galeria', label: 'Galería' },
+  { href: '/nosotros', label: 'Nosotros' },
+  { href: '/galeria', label: 'Galería' },
+  { href: '/tienda', label: 'Tienda' },
 ]
 
 // Brand

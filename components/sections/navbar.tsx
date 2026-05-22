@@ -70,11 +70,11 @@ export function Navbar() {
         )}
       >
         <Container>
-          <nav className="flex h-20 items-center justify-between md:h-24">
+          <nav className="flex h-20 items-center gap-4 md:h-24">
             {/* Logo */}
-            <a 
-              href="#" 
-              className="group flex flex-col"
+            <a
+              href="#"
+              className="group flex shrink-0 flex-col"
             >
               <span className="font-serif text-xl font-light tracking-[0.2em] text-foreground transition-colors group-hover:text-primary md:text-2xl">
                 {BRAND.name}
@@ -85,7 +85,7 @@ export function Navbar() {
             </a>
 
             {/* Desktop Navigation */}
-            <ul className="hidden items-center gap-8 md:flex lg:gap-12">
+            <ul className="hidden flex-1 items-center justify-center gap-8 md:flex lg:gap-12">
               {NAV_LINKS.map((link) => (
                 <li key={link.href}>
                   <a
@@ -100,7 +100,7 @@ export function Navbar() {
             </ul>
 
             {/* Right side: Reservar + Cart */}
-            <div className="hidden items-center gap-3 md:flex">
+            <div className="hidden shrink-0 items-center gap-3 md:flex">
               <a
                 href={`https://wa.me/${CONTACT_INFO.phone.replace(/\D/g, '')}`}
                 target="_blank"
