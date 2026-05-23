@@ -3,8 +3,10 @@
 import { z } from 'zod'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/ssr'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { signInWithEmail } from '@/lib/auth/login'
+import { signOut } from '@/lib/auth/logout'
+import { getAdminUser } from '@/lib/auth/session'
 import type { OrderStatus, ReservationStatus, TableStatus, TableReservationStatus } from '@/types/database'
 
 // ── Auth ────────────────────────────────────────────────────────────────────
@@ -32,19 +34,14 @@ export async function loginAction(
     return { error: parsed.error.errors[0]?.message ?? 'Datos inválidos' }
   }
 
-  const supabase = await createClient()
-  const { error } = await supabase.auth.signInWithPassword(parsed.data)
-
-  if (error) {
-    return { error: 'Email o contraseña incorrectos' }
-  }
+  const result = await signInWithEmail(parsed.data.email, parsed.data.password)
+  if (result.error) return { error: result.error }
 
   redirect('/admin/dashboard')
 }
 
 export async function logoutAction(): Promise<never> {
-  const supabase = await createClient()
-  await supabase.auth.signOut()
+  await signOut()
   redirect('/admin/login')
 }
 
@@ -71,11 +68,7 @@ export async function updateOrderStatusAction(
     return { error: 'Estado inválido' }
   }
 
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
+  const user = await getAdminUser()
   if (!user) {
     return { error: 'No autorizado' }
   }
@@ -108,8 +101,7 @@ export async function updateReservationStatusAction(
     return { error: 'Estado inválido' }
   }
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getAdminUser()
   if (!user) return { error: 'No autorizado' }
 
   const { error } = await supabaseAdmin
@@ -130,8 +122,7 @@ export async function updateTableStatusAction(
   tableId: string,
   status: TableStatus
 ): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getAdminUser()
   if (!user) return { error: 'No autorizado' }
 
   const { error } = await supabaseAdmin
@@ -150,8 +141,7 @@ export async function updateTableReservationStatusAction(
   reservationId: string,
   status: TableReservationStatus
 ): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getAdminUser()
   if (!user) return { error: 'No autorizado' }
 
   const { error } = await supabaseAdmin

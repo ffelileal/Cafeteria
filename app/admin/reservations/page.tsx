@@ -1,6 +1,7 @@
 import { getAdminReservations } from '@/lib/admin/queries'
 import { ReservationsFilters } from './_components/reservations-filters'
 import { ReservationsTable } from './_components/reservations-table'
+import { RealtimeRefresher } from '../_components/realtime-refresher'
 import type { ReservationStatus } from '@/types/database'
 
 interface PageProps {
@@ -22,6 +23,8 @@ export default async function ReservationsPage({ searchParams }: PageProps) {
 
   return (
     <div className="px-6 py-8 lg:px-8 xl:px-10">
+      <RealtimeRefresher tables={['reservations']} />
+
       {/* Header */}
       <div className="mb-8">
         <h1 className="font-serif text-2xl font-light text-foreground">Reservas</h1>

@@ -1,6 +1,17 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 
+const ALLOWED = (process.env.ADMIN_ALLOWED_EMAILS ?? '')
+  .split(',')
+  .map(e => e.trim().toLowerCase())
+  .filter(Boolean)
+
+function isAllowedAdmin(email: string | null | undefined): boolean {
+  if (!email) return false
+  if (ALLOWED.length === 0) return true
+  return ALLOWED.includes(email.toLowerCase())
+}
+
 export async function updateSession(request: NextRequest): Promise<NextResponse> {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -29,15 +40,16 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
   } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
-
-  const isAdminRoute = pathname.startsWith('/admin')
   const isLoginPage = pathname === '/admin/login'
+  const isAdminRoute = pathname.startsWith('/admin')
 
-  if (!user && isAdminRoute && !isLoginPage) {
+  const isAuthorised = !!user && isAllowedAdmin(user.email)
+
+  if (!isAuthorised && isAdminRoute && !isLoginPage) {
     return NextResponse.redirect(new URL('/admin/login', request.url))
   }
 
-  if (user && isLoginPage) {
+  if (isAuthorised && isLoginPage) {
     return NextResponse.redirect(new URL('/admin/dashboard', request.url))
   }
 

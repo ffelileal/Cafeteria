@@ -1,6 +1,7 @@
 import { getOrders } from '@/lib/admin/queries'
 import { OrdersFilters } from './_components/orders-filters'
 import { OrdersDataTable } from './_components/orders-data-table'
+import { RealtimeRefresher } from '../_components/realtime-refresher'
 import type { OrderStatus, OrderType } from '@/types/database'
 
 interface PageProps {
@@ -24,6 +25,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
 
   return (
     <div className="px-6 py-8 lg:px-8 xl:px-10">
+      <RealtimeRefresher tables={['orders']} />
 
       {/* Header */}
       <div className="mb-8 flex items-start justify-between">

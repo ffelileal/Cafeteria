@@ -3,14 +3,32 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import type { OrderStatus, OrderType, ProductRow, ReservationStatus } from '@/types/database'
 import type { OrderRow } from '@/app/admin/dashboard/_components/orders-table'
 
+// ── Date range ────────────────────────────────────────────────────────────────
+
+export interface DateRange {
+  from: string  // YYYY-MM-DD
+  to: string    // YYYY-MM-DD
+}
+
+function toISORange(range?: DateRange): { from: string | null; to: string | null } {
+  if (!range) return { from: null, to: null }
+  const f = new Date(range.from); f.setHours(0, 0, 0, 0)
+  const t = new Date(range.to);   t.setHours(23, 59, 59, 999)
+  return { from: f.toISOString(), to: t.toISOString() }
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface DashboardStats {
   totalOrders: number
   pendingOrders: number
+  cancelledOrders: number
+  completedOrders: number
   todayOrders: number
   totalRevenue: number
   avgTicket: number
+  activeReservations: number   // pending + confirmed reservations (current state)
+  occupiedTables: number       // tables with status = 'occupied' (current state)
 }
 
 export interface RevenueDataPoint {
@@ -69,56 +87,77 @@ export interface OrderDetail {
 
 // ── Queries ───────────────────────────────────────────────────────────────────
 
-export async function getDashboardStats(): Promise<DashboardStats> {
+export async function getDashboardStats(range?: DateRange): Promise<DashboardStats> {
   const todayStart = new Date()
   todayStart.setHours(0, 0, 0, 0)
+
+  const { from, to } = toISORange(range)
+
+  let qTotal     = supabaseAdmin.from('orders').select('*', { count: 'exact', head: true })
+  let qCancelled = supabaseAdmin.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'cancelled')
+  let qCompleted = supabaseAdmin.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'completed')
+  let qRevenue   = supabaseAdmin.from('orders').select('total').neq('status', 'cancelled')
+  if (from) { qTotal = qTotal.gte('created_at', from); qCancelled = qCancelled.gte('created_at', from); qCompleted = qCompleted.gte('created_at', from); qRevenue = qRevenue.gte('created_at', from) }
+  if (to)   { qTotal = qTotal.lte('created_at', to);   qCancelled = qCancelled.lte('created_at', to);   qCompleted = qCompleted.lte('created_at', to);   qRevenue = qRevenue.lte('created_at', to) }
 
   const [
     { count: total },
     { count: pending },
+    { count: cancelled },
+    { count: completed },
     { count: today },
     { data: revenueRows },
+    { count: activeRes },
+    { count: occupiedTab },
   ] = await Promise.all([
-    supabaseAdmin.from('orders').select('*', { count: 'exact', head: true }),
-    supabaseAdmin
-      .from('orders')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'pending'),
-    supabaseAdmin
-      .from('orders')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', todayStart.toISOString()),
-    supabaseAdmin.from('orders').select('total').neq('status', 'cancelled'),
+    qTotal,
+    // pending always shows current state regardless of range
+    supabaseAdmin.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+    qCancelled,
+    qCompleted,
+    supabaseAdmin.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', todayStart.toISOString()),
+    qRevenue,
+    // reservations and tables are always current state — not filtered by date range
+    supabaseAdmin.from('reservations').select('*', { count: 'exact', head: true }).in('status', ['pending', 'confirmed']),
+    supabaseAdmin.from('tables').select('*', { count: 'exact', head: true }).eq('status', 'occupied'),
   ])
 
-  const totalRevenue = (revenueRows ?? []).reduce(
-    (sum, r) => sum + Number(r.total),
-    0
-  )
+  const totalRevenue = (revenueRows ?? []).reduce((sum, r) => sum + Number(r.total), 0)
   const totalOrders = total ?? 0
 
   return {
     totalOrders,
     pendingOrders: pending ?? 0,
+    cancelledOrders: cancelled ?? 0,
+    completedOrders: completed ?? 0,
     todayOrders: today ?? 0,
     totalRevenue,
     avgTicket: totalOrders > 0 ? totalRevenue / totalOrders : 0,
+    activeReservations: activeRes ?? 0,
+    occupiedTables: occupiedTab ?? 0,
   }
 }
 
-export async function getRevenueSeries(days: number): Promise<RevenueDataPoint[]> {
-  const since = new Date()
-  since.setDate(since.getDate() - (days - 1))
-  since.setHours(0, 0, 0, 0)
+export async function getRevenueSeries(days: number, range?: DateRange): Promise<RevenueDataPoint[]> {
+  let since: Date
+  let until: Date
+
+  if (range) {
+    since = new Date(range.from); since.setHours(0, 0, 0, 0)
+    until = new Date(range.to);   until.setHours(23, 59, 59, 999)
+  } else {
+    until = new Date()
+    since = new Date(); since.setDate(since.getDate() - (days - 1)); since.setHours(0, 0, 0, 0)
+  }
 
   const { data } = await supabaseAdmin
     .from('orders')
     .select('total, created_at')
     .gte('created_at', since.toISOString())
+    .lte('created_at', until.toISOString())
     .neq('status', 'cancelled')
 
   const byDay = new Map<string, { revenue: number; orders: number }>()
-
   ;(data ?? []).forEach(row => {
     const key = row.created_at.split('T')[0]
     const curr = byDay.get(key) ?? { revenue: 0, orders: 0 }
@@ -128,37 +167,49 @@ export async function getRevenueSeries(days: number): Promise<RevenueDataPoint[]
   })
 
   const result: RevenueDataPoint[] = []
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date()
-    d.setDate(d.getDate() - i)
-    const key = d.toISOString().split('T')[0]
-    const label = `${d.getDate()}/${d.getMonth() + 1}`
-    const day = byDay.get(key) ?? { revenue: 0, orders: 0 }
-    result.push({ date: key, label, ...day })
+  const cur = new Date(since)
+  while (cur <= until) {
+    const key = cur.toISOString().split('T')[0]
+    const label = `${cur.getDate()}/${cur.getMonth() + 1}`
+    result.push({ date: key, label, ...(byDay.get(key) ?? { revenue: 0, orders: 0 }) })
+    cur.setDate(cur.getDate() + 1)
   }
 
   return result
 }
 
-export async function getOrdersByType(): Promise<OrderTypeData> {
-  const [{ count: menu }, { count: store }] = await Promise.all([
-    supabaseAdmin
-      .from('orders')
-      .select('*', { count: 'exact', head: true })
-      .eq('order_type', 'menu'),
-    supabaseAdmin
-      .from('orders')
-      .select('*', { count: 'exact', head: true })
-      .eq('order_type', 'store'),
-  ])
+export async function getOrdersByType(range?: DateRange): Promise<OrderTypeData> {
+  const { from, to } = toISORange(range)
 
+  let qMenu  = supabaseAdmin.from('orders').select('*', { count: 'exact', head: true }).eq('order_type', 'menu')
+  let qStore = supabaseAdmin.from('orders').select('*', { count: 'exact', head: true }).eq('order_type', 'store')
+  if (from) { qMenu = qMenu.gte('created_at', from); qStore = qStore.gte('created_at', from) }
+  if (to)   { qMenu = qMenu.lte('created_at', to);   qStore = qStore.lte('created_at', to) }
+
+  const [{ count: menu }, { count: store }] = await Promise.all([qMenu, qStore])
   return { menu: menu ?? 0, store: store ?? 0 }
 }
 
-export async function getTopProducts(limit: number): Promise<TopProductData[]> {
-  const { data } = await supabaseAdmin
+export async function getTopProducts(limit: number, range?: DateRange): Promise<TopProductData[]> {
+  const { from, to } = toISORange(range)
+
+  // Resolve order IDs within range first (when filtering)
+  let orderIds: string[] | null = null
+  if (from || to) {
+    let q = supabaseAdmin.from('orders').select('id').neq('status', 'cancelled')
+    if (from) q = q.gte('created_at', from)
+    if (to)   q = q.lte('created_at', to)
+    const { data: ords } = await q
+    orderIds = (ords ?? []).map(o => o.id)
+    if (orderIds.length === 0) return []
+  }
+
+  let itemQuery = supabaseAdmin
     .from('order_items')
     .select('product_id, quantity, subtotal, products(name, category)')
+  if (orderIds !== null) itemQuery = itemQuery.in('order_id', orderIds)
+
+  const { data } = await itemQuery
 
   type RawItem = {
     product_id: string
@@ -297,12 +348,16 @@ export async function getAdminProducts(): Promise<ProductRow[]> {
   return (data ?? []) as ProductRow[]
 }
 
-export async function getRecentOrders(limit: number): Promise<OrderRow[]> {
-  const { data } = await supabaseAdmin
+export async function getRecentOrders(limit: number, range?: DateRange): Promise<OrderRow[]> {
+  const { from, to } = toISORange(range)
+  let q = supabaseAdmin
     .from('orders')
     .select('id, status, order_type, total, notes, created_at, customers(full_name, email)')
     .order('created_at', { ascending: false })
     .limit(limit)
+  if (from) q = q.gte('created_at', from)
+  if (to)   q = q.lte('created_at', to)
+  const { data } = await q
 
   type RawOrderRow = {
     id: string
@@ -342,6 +397,57 @@ export interface ReservationDetail {
 export interface ReservationFilters {
   status?: ReservationStatus | 'all'
   search?: string
+}
+
+// ── Weekly totals ─────────────────────────────────────────────────────────────
+
+export interface WeeklyTotalData {
+  label: string
+  revenue: number
+  orders: number
+}
+
+export async function getWeeklyTotals(weeks = 8, range?: DateRange): Promise<WeeklyTotalData[]> {
+  let since: Date
+  let until: Date
+
+  if (range) {
+    since = new Date(range.from); since.setHours(0, 0, 0, 0)
+    until = new Date(range.to);   until.setHours(23, 59, 59, 999)
+  } else {
+    until = new Date()
+    since = new Date(); since.setDate(since.getDate() - weeks * 7); since.setHours(0, 0, 0, 0)
+  }
+
+  const { data } = await supabaseAdmin
+    .from('orders')
+    .select('total, created_at')
+    .gte('created_at', since.toISOString())
+    .lte('created_at', until.toISOString())
+    .neq('status', 'cancelled')
+
+  const byWeek = new Map<string, { revenue: number; orders: number }>()
+
+  ;(data ?? []).forEach(row => {
+    const d = new Date(row.created_at)
+    const day = d.getDay() || 7
+    const monday = new Date(d)
+    monday.setDate(d.getDate() - (day - 1))
+    monday.setHours(0, 0, 0, 0)
+    const key = monday.toISOString().split('T')[0]
+    const cur = byWeek.get(key) ?? { revenue: 0, orders: 0 }
+    cur.revenue += Number(row.total)
+    cur.orders += 1
+    byWeek.set(key, cur)
+  })
+
+  return Array.from(byWeek.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([dateStr, vals]) => {
+      const d = new Date(dateStr)
+      const label = `${d.getDate()}/${d.getMonth() + 1}`
+      return { label, ...vals }
+    })
 }
 
 // ── Admin tables ──────────────────────────────────────────────────────────────
@@ -523,11 +629,12 @@ export interface PeakHourData {
   orders: number
 }
 
-export async function getPeakHours(): Promise<PeakHourData[]> {
-  const { data } = await supabaseAdmin
-    .from('orders')
-    .select('created_at')
-    .neq('status', 'cancelled')
+export async function getPeakHours(range?: DateRange): Promise<PeakHourData[]> {
+  const { from, to } = toISORange(range)
+  let q = supabaseAdmin.from('orders').select('created_at').neq('status', 'cancelled')
+  if (from) q = q.gte('created_at', from)
+  if (to)   q = q.lte('created_at', to)
+  const { data } = await q
 
   const byHour = new Array(24).fill(0) as number[]
 

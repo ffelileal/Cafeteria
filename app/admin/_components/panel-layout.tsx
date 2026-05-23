@@ -1,14 +1,8 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/ssr'
+import { requireAdmin } from '@/lib/auth/session'
 import { Sidebar } from '../dashboard/_components/sidebar'
 
 export async function PanelLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) redirect('/admin/login')
+  const user = await requireAdmin()
 
   return (
     <div className="flex min-h-screen">

@@ -1,5 +1,6 @@
 import { getAdminTables, getTableReservationsForAdmin } from '@/lib/admin/queries'
 import { TablesGrid } from './_components/tables-grid'
+import { RealtimeRefresher } from '../_components/realtime-refresher'
 import type { AdminTableReservation } from '@/lib/admin/queries'
 
 export default async function TablesPage() {
@@ -19,6 +20,8 @@ export default async function TablesPage() {
 
   return (
     <div className="px-6 py-8 lg:px-8 xl:px-10">
+      <RealtimeRefresher tables={['tables', 'table_reservations']} />
+
       {/* Header */}
       <div className="mb-8">
         <h1 className="font-serif text-2xl font-light text-foreground">Mesas</h1>
