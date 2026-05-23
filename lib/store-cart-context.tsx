@@ -8,32 +8,10 @@ import {
   useCallback,
   type ReactNode,
 } from 'react'
+import type { CartItem, CoffeeSelectionDetails } from './cart-context'
 import type { MenuItem } from './constants'
 
-export type CoffeeType = 'Café en granos' | 'Café molido'
-export type CoffeeWeight = '250g' | '500g' | '1kg'
-export type CoffeeGrind = 'Espresso' | 'Moka' | 'Filtro / V60' | 'Prensa francesa' | 'Aeropress'
-
-export interface CoffeeSelectionDetails {
-  coffeeType: CoffeeType
-  grind?: CoffeeGrind
-  weight: CoffeeWeight
-}
-
-export interface CartItem
-  extends Pick<MenuItem, 'name' | 'description' | 'price' | 'size'> {
-  id: string
-  productId?: string
-  quantity: number
-  categoryName: string
-  subtotal: number
-  unitSubtotal: number
-  coffeeType?: CoffeeType
-  grind?: CoffeeGrind
-  weight?: CoffeeWeight
-}
-
-interface CartContextValue {
+interface StoreCartContextValue {
   items: CartItem[]
   addItem: (item: MenuItem, categoryName: string, details?: CoffeeSelectionDetails, productId?: string) => void
   removeItem: (id: string) => void
@@ -45,27 +23,21 @@ interface CartContextValue {
   setIsOpen: (open: boolean) => void
 }
 
-const CartContext = createContext<CartContextValue | null>(null)
+const StoreCartContext = createContext<StoreCartContextValue | null>(null)
 
-const STORAGE_KEY = 'artisan-cart'
+const STORAGE_KEY = 'artisan-store-cart'
 
-function getWeightMultiplier(weight: CoffeeWeight): number {
+function getWeightMultiplier(weight: CoffeeSelectionDetails['weight']): number {
   switch (weight) {
-    case '250g':
-      return 1
-    case '500g':
-      return 2
-    case '1kg':
-      return 4
+    case '250g': return 1
+    case '500g': return 2
+    case '1kg': return 4
   }
 }
 
 function buildCartKey(item: MenuItem, categoryName: string, details?: CoffeeSelectionDetails): string {
-  if (!details) {
-    return `menu-${item.name}-${categoryName}`
-  }
-
-  return ['coffee', item.name, details.coffeeType, details.grind ?? 'sin molienda', details.weight].join('|')
+  if (!details) return `store-${item.name}-${categoryName}`
+  return ['store-coffee', item.name, details.coffeeType, details.grind ?? 'sin molienda', details.weight].join('|')
 }
 
 function createCartItem(
@@ -104,7 +76,7 @@ function readStorage(): CartItem[] {
   }
 }
 
-export function CartProvider({ children }: { children: ReactNode }) {
+export function StoreCartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [hydrated, setHydrated] = useState(false)
@@ -128,11 +100,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (exists) {
         return prev.map(i =>
           i.id === candidate.id
-            ? {
-                ...i,
-                quantity: i.quantity + 1,
-                subtotal: i.subtotal + i.unitSubtotal,
-              }
+            ? { ...i, quantity: i.quantity + 1, subtotal: i.subtotal + i.unitSubtotal }
             : i
         )
       }
@@ -167,26 +135,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const totalPrice = items.reduce((sum, item) => sum + item.subtotal, 0)
 
   return (
-    <CartContext.Provider
-      value={{
-        items,
-        addItem,
-        removeItem,
-        updateQuantity,
-        clearCart,
-        totalItems,
-        totalPrice,
-        isOpen,
-        setIsOpen,
-      }}
+    <StoreCartContext.Provider
+      value={{ items, addItem, removeItem, updateQuantity, clearCart, totalItems, totalPrice, isOpen, setIsOpen }}
     >
       {children}
-    </CartContext.Provider>
+    </StoreCartContext.Provider>
   )
 }
 
-export function useCart(): CartContextValue {
-  const ctx = useContext(CartContext)
-  if (!ctx) throw new Error('useCart must be used within CartProvider')
+export function useStoreCart(): StoreCartContextValue {
+  const ctx = useContext(StoreCartContext)
+  if (!ctx) throw new Error('useStoreCart must be used within StoreCartProvider')
   return ctx
 }

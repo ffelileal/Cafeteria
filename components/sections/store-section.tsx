@@ -6,9 +6,18 @@ import { Coffee, PackageCheck, Sparkles } from 'lucide-react'
 import { Container } from '@/components/container'
 import { SectionTitle } from '@/components/section-title'
 import { PremiumButton } from '@/components/premium-button'
-import { useCart } from '@/lib/cart-context'
+import { StoreCartProvider, useStoreCart } from '@/lib/store-cart-context'
+import { StoreCartDrawer } from '@/components/store-cart-drawer'
 import type { MenuItem } from '@/lib/constants'
 import { CoffeeSelectionModal, type StoreProduct } from './coffee-selection-modal'
+
+const ShopBagIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+    <line x1="3" y1="6" x2="21" y2="6" />
+    <path d="M16 10a4 4 0 0 1-8 0" />
+  </svg>
+)
 
 const products: StoreProduct[] = [
   {
@@ -66,7 +75,15 @@ const products: StoreProduct[] = [
 ]
 
 export function StoreSection() {
-  const { addItem, setIsOpen } = useCart()
+  return (
+    <StoreCartProvider>
+      <StoreSectionContent />
+    </StoreCartProvider>
+  )
+}
+
+function StoreSectionContent() {
+  const { addItem, setIsOpen, totalItems } = useStoreCart()
   const [selectedProduct, setSelectedProduct] = useState<StoreProduct | null>(null)
 
   return (
@@ -74,14 +91,28 @@ export function StoreSection() {
       <Container>
         <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
           <div>
-            <SectionTitle
-              eyebrow="Tienda"
-              title="Boutique premium de granos y objetos de café."
-              subtitle="Una selección cuidada: granos especiales, piezas funcionales y objetos de uso diario que elevan el ritual del café."
-              align="left"
-              dark
-              className="mb-0"
-            />
+            <div className="flex items-start justify-between gap-4">
+              <SectionTitle
+                eyebrow="Tienda"
+                title="Boutique premium de granos y objetos de café."
+                subtitle="Una selección cuidada: granos especiales, piezas funcionales y objetos de uso diario que elevan el ritual del café."
+                align="left"
+                dark
+                className="mb-0"
+              />
+              {totalItems > 0 && (
+                <button
+                  onClick={() => setIsOpen(true)}
+                  aria-label="Ver carrito de tienda"
+                  className="relative mt-1 shrink-0 flex h-10 w-10 items-center justify-center rounded-full border border-border/60 text-foreground/80 transition-colors hover:border-primary hover:text-primary"
+                >
+                  <ShopBagIcon className="h-5 w-5" />
+                  <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-medium text-primary-foreground">
+                    {totalItems > 9 ? '9+' : totalItems}
+                  </span>
+                </button>
+              )}
+            </div>
             <div className="mt-8 space-y-4 text-sm leading-7 text-muted-foreground">
               <div className="flex items-start gap-3">
                 <Sparkles className="mt-1 h-4 w-4 text-primary" />
@@ -172,6 +203,8 @@ export function StoreSection() {
           setIsOpen(true)
         }}
       />
+
+      <StoreCartDrawer />
     </section>
   )
 }

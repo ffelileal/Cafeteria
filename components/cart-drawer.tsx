@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useCart } from '@/lib/cart-context'
-import { CONTACT_INFO } from '@/lib/constants'
 import { premiumEase } from '@/lib/animations'
+import { CheckoutModal } from '@/components/checkout-modal'
 
 // --- Icons ---
 
@@ -43,10 +43,8 @@ function buildWhatsAppMessage(
 ): string {
   const lines = items
     .map(item => {
-      const details = [item.coffeeType, item.weight, item.grind].filter(Boolean).join(' · ')
-      const detailLine = details ? `\n  ${details}` : ''
-
-      return `• ${item.name} x${item.quantity} — $${item.subtotal.toLocaleString('es-AR')}${detailLine}`
+      const subtotal = item.price * item.quantity
+      return `• ${item.name} x${item.quantity} — $${subtotal.toLocaleString('es-AR')}`
     })
     .join('\n')
 
@@ -58,6 +56,7 @@ function buildWhatsAppMessage(
 export function CartDrawer() {
   const { items, removeItem, updateQuantity, clearCart, totalItems, totalPrice, isOpen, setIsOpen } =
     useCart()
+  const [checkoutOpen, setCheckoutOpen] = useState(false)
 
   // Lock body scroll when drawer is open
   useEffect(() => {
@@ -65,13 +64,8 @@ export function CartDrawer() {
     return () => { document.body.style.overflow = '' }
   }, [isOpen])
 
-  const handleWhatsApp = () => {
-    const phone = CONTACT_INFO.phone.replace(/\D/g, '')
-    const message = buildWhatsAppMessage(items, totalPrice)
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank')
-  }
-
   return (
+    <>
     <AnimatePresence>
       {isOpen && (
         <>
@@ -150,17 +144,12 @@ export function CartDrawer() {
                           <p className="mt-1 text-xs text-muted-foreground">
                             ${item.price.toLocaleString('es-AR')} c/u
                           </p>
-                          {item.coffeeType && (
-                            <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
-                              {item.coffeeType} · {item.weight} · {item.grind ?? 'granos enteros'}
-                            </p>
-                          )}
                         </div>
 
                         <div className="flex flex-col items-end justify-between gap-2">
                           {/* Subtotal */}
                           <span className="font-serif text-sm font-medium text-primary">
-                            ${item.subtotal.toLocaleString('es-AR')}
+                            ${(item.price * item.quantity).toLocaleString('es-AR')}
                           </span>
 
                           {/* Controls */}
@@ -209,16 +198,12 @@ export function CartDrawer() {
                   </span>
                 </div>
 
-                {/* WhatsApp CTA */}
+                {/* Confirm order CTA */}
                 <button
-                  onClick={handleWhatsApp}
-                  className={cn(
-                    'flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-sm font-medium text-white transition-all duration-200',
-                    'bg-[#25D366] hover:bg-[#20bc5a] active:scale-[0.98]'
-                  )}
+                  onClick={() => setCheckoutOpen(true)}
+                  className="flex w-full items-center justify-center gap-2 rounded-full bg-primary py-3.5 text-sm font-medium text-primary-foreground transition-all duration-200 hover:opacity-90 active:scale-[0.98]"
                 >
-                  <WhatsAppIcon className="h-4 w-4" />
-                  Enviar pedido por WhatsApp
+                  Confirmar Pedido
                 </button>
 
                 {/* Clear cart */}
@@ -234,5 +219,11 @@ export function CartDrawer() {
         </>
       )}
     </AnimatePresence>
+
+    <CheckoutModal
+      isOpen={checkoutOpen}
+      onClose={() => setCheckoutOpen(false)}
+    />
+    </>
   )
 }

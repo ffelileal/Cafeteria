@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(ls -la /c/FELIPE/Cafeteria/app/ 2>/dev/null || ls -la \"C:/FELIPE/Cafeteria/app/\")",
+      "Read(//c/FELIPE/Cafeteria/app//**)",
+      "Bash(find /c/FELIPE/Cafeteria -type f -name \"*.tsx\" -path \"*/components/*\" 2>/dev/null | head -20)",
+      "Read(//c/FELIPE/Cafeteria/**)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(pnpm add *)",
+      "Bash(dir app *)"
+    ]
+  }
+}

@@ -1,28 +1,29 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Container } from '@/components/container'
 import { SectionTitle } from '@/components/section-title'
 import { CartDrawer } from '@/components/cart-drawer'
-import { MENU_CATEGORIES, COFFEE_ORIGINS, MILK_OPTIONS, EXTRAS } from '@/lib/constants'
-import type { MenuItem } from '@/lib/constants'
+import { COFFEE_ORIGINS, MILK_OPTIONS, EXTRAS } from '@/lib/constants'
 import { fadeInUp, staggerContainer, cardHover, premiumEase } from '@/lib/animations'
 import { getPopularityBadge } from '@/lib/menu-utils'
 import { useCart } from '@/lib/cart-context'
+import { useProducts } from '@/hooks/use-products'
+import type { MenuProduct } from '@/services/products'
 
 // --- Types ---
 
 type FilterId = 'all' | 'hot' | 'cold' | 'popular' | 'vegano' | 'sin-tacc'
 
-type MenuItemWithCategory = MenuItem & {
+type MenuItemWithCategory = MenuProduct & {
   categoryName: string
   categoryId: string
 }
 
-// --- Module-level constants (computed once) ---
+// --- Module-level constants ---
 
 const FILTERS: { id: FilterId; label: string }[] = [
   { id: 'all', label: 'Todos' },
@@ -32,10 +33,6 @@ const FILTERS: { id: FilterId; label: string }[] = [
   { id: 'vegano', label: 'Vegano' },
   { id: 'sin-tacc', label: 'Sin TACC' },
 ]
-
-const ALL_ITEMS: MenuItemWithCategory[] = MENU_CATEGORIES.flatMap(cat =>
-  cat.items.map(item => ({ ...item, categoryName: cat.name, categoryId: cat.id }))
-)
 
 // --- Icons ---
 
@@ -98,26 +95,50 @@ const XIcon = ({ className }: { className?: string }) => (
   </svg>
 )
 
+// --- Skeleton ---
+
+function MenuSkeleton() {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div
+          key={i}
+          className="h-48 animate-pulse rounded-2xl border border-border/30 bg-card/30"
+        />
+      ))}
+    </div>
+  )
+}
+
 // --- Component ---
 
 export function MenuSection() {
-  const [activeCategory, setActiveCategory] = useState(MENU_CATEGORIES[0].id)
+  const { categories, allItems, isLoading, error } = useProducts()
+
+  const [activeCategory, setActiveCategory] = useState('')
   const [showOrigins, setShowOrigins] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeFilter, setActiveFilter] = useState<FilterId>('all')
 
+  // Set initial category once data loads
+  useEffect(() => {
+    if (categories.length > 0 && activeCategory === '') {
+      setActiveCategory(categories[0].id)
+    }
+  }, [categories, activeCategory])
+
   const isFiltered = searchQuery.trim().length > 0 || activeFilter !== 'all'
 
   const activeDescription = useMemo(
-    () => MENU_CATEGORIES.find(cat => cat.id === activeCategory)?.description ?? '',
-    [activeCategory]
+    () => categories.find(cat => cat.id === activeCategory)?.description ?? '',
+    [activeCategory, categories]
   )
 
   const displayItems = useMemo<MenuItemWithCategory[]>(() => {
     const base: MenuItemWithCategory[] = isFiltered
-      ? ALL_ITEMS
+      ? allItems
       : (() => {
-          const cat = MENU_CATEGORIES.find(c => c.id === activeCategory)
+          const cat = categories.find(c => c.id === activeCategory)
           return (cat?.items ?? []).map(item => ({
             ...item,
             categoryName: cat?.name ?? '',
@@ -137,13 +158,13 @@ export function MenuSection() {
         activeFilter === 'all' ||
         (activeFilter === 'hot' && !!item.hot) ||
         (activeFilter === 'cold' && !!item.cold) ||
-        (activeFilter === 'popular' && (item.popularity ?? 0) >= 75) ||
+        (activeFilter === 'popular' && item.popularity >= 75) ||
         (activeFilter === 'vegano' && (item.tags?.includes('vegano') ?? false)) ||
         (activeFilter === 'sin-tacc' && (item.tags?.includes('sin tacc') ?? false))
 
       return matchesSearch && matchesFilter
     })
-  }, [isFiltered, activeCategory, searchQuery, activeFilter])
+  }, [isFiltered, activeCategory, searchQuery, activeFilter, allItems, categories])
 
   const clearFilters = useCallback(() => {
     setSearchQuery('')
@@ -283,7 +304,7 @@ export function MenuSection() {
                     className="overflow-hidden"
                   >
                     <div className="mb-8 flex flex-wrap justify-center gap-2 md:gap-3">
-                      {MENU_CATEGORIES.map(category => (
+                      {categories.map(category => (
                         <button
                           key={category.id}
                           onClick={() => setActiveCategory(category.id)}
@@ -342,9 +363,31 @@ export function MenuSection() {
                 )}
               </AnimatePresence>
 
-              {/* Items grid / empty state */}
+              {/* Items grid / skeleton / error / empty */}
               <AnimatePresence mode="wait">
-                {displayItems.length === 0 ? (
+                {isLoading ? (
+                  <motion.div
+                    key="skeleton"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    <MenuSkeleton />
+                  </motion.div>
+                ) : error ? (
+                  <motion.div
+                    key="error"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="py-24 text-center"
+                  >
+                    <p className="text-sm text-muted-foreground">
+                      No se pudo cargar el menú. Intentá de nuevo.
+                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground/50">{error}</p>
+                  </motion.div>
+                ) : displayItems.length === 0 ? (
                   <motion.div
                     key="empty"
                     initial={{ opacity: 0, y: 10 }}
@@ -373,7 +416,8 @@ export function MenuSection() {
                   >
                     {displayItems.map((item, index) => {
                       const badge = getPopularityBadge(item.popularity)
-                      const showStarBadge = !badge && item.featured
+                      const showStarBadge = !badge && !!item.featured
+                      const isOutOfStock = item.stock === 0
                       const cartItem = cartItems.find(ci => ci.name === item.name)
 
                       return (
@@ -397,8 +441,14 @@ export function MenuSection() {
                                 : 'border-white/[0.07] hover:border-primary/20 hover:shadow-primary/10'
                             )}
                           >
-                            {/* Badge: popularity (auto) or featured (fallback) */}
-                            {badge ? (
+                            {/* Badge */}
+                            {isOutOfStock ? (
+                              <div className="absolute -top-3 left-4">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                                  Agotado
+                                </span>
+                              </div>
+                            ) : badge ? (
                               <div className="absolute -top-3 left-4">
                                 <span className={cn('inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium', badge.className)}>
                                   {badge.emoji} {badge.label}
@@ -413,7 +463,7 @@ export function MenuSection() {
                               </div>
                             ) : null}
 
-                            {/* Category label (only in filtered view) */}
+                            {/* Category label (filtered view) */}
                             {isFiltered && (
                               <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground/50">
                                 {item.categoryName}
@@ -472,7 +522,7 @@ export function MenuSection() {
                                   {item.serves} {item.serves === 1 ? 'persona' : 'personas'}
                                 </span>
                               )}
-                              {(item.hot || item.cold) && (
+                              {(item.hot ?? item.cold) && (
                                 <div className="flex gap-1">
                                   {item.hot && (
                                     <span className="flex items-center gap-0.5 rounded-full bg-orange-500/10 px-2 py-0.5 text-orange-400">
@@ -503,7 +553,7 @@ export function MenuSection() {
                                     <span className="text-xs text-muted-foreground">En tu pedido</span>
                                     <div className="flex items-center gap-3">
                                       <button
-                                        onClick={() => updateQuantity(item.name, -1)}
+                                        onClick={() => updateQuantity(cartItem.id, -1)}
                                         className="flex h-7 w-7 items-center justify-center rounded-full border border-border text-sm transition-colors hover:border-primary hover:text-primary"
                                         aria-label="Restar uno"
                                       >
@@ -513,8 +563,9 @@ export function MenuSection() {
                                         {cartItem.quantity}
                                       </span>
                                       <button
-                                        onClick={() => updateQuantity(item.name, 1)}
-                                        className="flex h-7 w-7 items-center justify-center rounded-full border border-border text-sm transition-colors hover:border-primary hover:text-primary"
+                                        onClick={() => updateQuantity(cartItem.id, 1)}
+                                        disabled={cartItem.quantity >= item.stock}
+                                        className="flex h-7 w-7 items-center justify-center rounded-full border border-border text-sm transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-30"
                                         aria-label="Sumar uno"
                                       >
                                         +
@@ -528,13 +579,14 @@ export function MenuSection() {
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -4 }}
                                     transition={{ duration: 0.15 }}
+                                    disabled={isOutOfStock}
                                     onClick={() => {
-                                      addItem(item, item.categoryName)
+                                      addItem(item, item.categoryName, undefined, item.id)
                                       toast.success('Agregado al carrito', { description: item.name })
                                     }}
-                                    className="w-full rounded-full border border-border/60 py-2 text-xs font-medium uppercase tracking-widest text-muted-foreground transition-all duration-200 hover:border-primary hover:text-primary"
+                                    className="w-full rounded-full border border-border/60 py-2 text-xs font-medium uppercase tracking-widest text-muted-foreground transition-all duration-200 hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
                                   >
-                                    Agregar
+                                    {isOutOfStock ? 'Sin stock' : 'Agregar'}
                                   </motion.button>
                                 )}
                               </AnimatePresence>
@@ -547,9 +599,9 @@ export function MenuSection() {
                 )}
               </AnimatePresence>
 
-              {/* Milk options + Extras — only when not filtered */}
+              {/* Milk options + Extras — only when not filtered and not loading */}
               <AnimatePresence>
-                {!isFiltered && (
+                {!isFiltered && !isLoading && (
                   <motion.div
                     key="extras"
                     initial={{ opacity: 0 }}
