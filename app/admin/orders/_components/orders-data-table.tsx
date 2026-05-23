@@ -102,6 +102,30 @@ function ExpandedRow({ order }: { order: OrderDetail }) {
               <span className="text-muted-foreground">{order.notes}</span>
             </div>
           )}
+
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            {order.payment_method && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border/50 px-2.5 py-1 text-[10px] text-muted-foreground">
+                {order.payment_method === 'cash' && 'Efectivo'}
+                {order.payment_method === 'transfer' && 'Transferencia'}
+                {order.payment_method === 'mercadopago' && 'MercadoPago'}
+              </span>
+            )}
+            <span
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium',
+                order.payment_status === 'paid'
+                  ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+                  : order.payment_status === 'refunded'
+                  ? 'border-red-500/20 bg-red-500/10 text-red-400'
+                  : 'border-amber-500/20 bg-amber-500/10 text-amber-400'
+              )}
+            >
+              {order.payment_status === 'paid' && 'Pagado'}
+              {order.payment_status === 'refunded' && 'Reembolsado'}
+              {order.payment_status === 'pending' && 'Pago pendiente'}
+            </span>
+          </div>
         </div>
       </td>
     </tr>
@@ -161,6 +185,11 @@ function OrderTableRow({ order }: { order: OrderDetail }) {
           >
             {order.order_type === 'menu' ? 'Menú' : 'Tienda'}
           </span>
+          {order.table_number != null && (
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              Mesa {order.table_number}
+            </p>
+          )}
         </td>
 
         {/* Ítems */}

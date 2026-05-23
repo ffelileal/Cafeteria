@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { logoutAction } from '@/app/admin/actions'
+import { useOrdersNotification } from '@/app/admin/_components/orders-notification-provider'
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -122,10 +123,11 @@ interface NavItemProps {
   label: string
   icon: React.FC<{ className?: string }>
   active: boolean
+  badge?: number
   onClick?: () => void
 }
 
-function NavItem({ href, label, icon: Icon, active, onClick }: NavItemProps) {
+function NavItem({ href, label, icon: Icon, active, badge, onClick }: NavItemProps) {
   return (
     <Link
       href={href}
@@ -138,7 +140,12 @@ function NavItem({ href, label, icon: Icon, active, onClick }: NavItemProps) {
       )}
     >
       <Icon className="h-4 w-4 shrink-0" />
-      {label}
+      <span className="flex-1">{label}</span>
+      {badge != null && badge > 0 && (
+        <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
     </Link>
   )
 }
@@ -146,6 +153,15 @@ function NavItem({ href, label, icon: Icon, active, onClick }: NavItemProps) {
 // ── Sidebar content ───────────────────────────────────────────────────────────
 
 function SidebarContent({ email, pathname, onClose }: { email: string; pathname: string; onClose?: () => void }) {
+  const { newOrderCount, clearNewOrders } = useOrdersNotification()
+
+  // Auto-clear badge when the user is on the orders page
+  useEffect(() => {
+    if (pathname === '/admin/orders' || pathname.startsWith('/admin/orders/')) {
+      clearNewOrders()
+    }
+  }, [pathname, clearNewOrders])
+
   return (
     <div className="flex h-full flex-col">
       {/* Brand */}
@@ -175,7 +191,11 @@ function SidebarContent({ email, pathname, onClose }: { email: string; pathname:
               label={item.label}
               icon={item.icon}
               active={pathname === item.href || pathname.startsWith(item.href + '/')}
-              onClick={onClose}
+              badge={item.href === '/admin/orders' ? newOrderCount : undefined}
+              onClick={() => {
+                if (item.href === '/admin/orders') clearNewOrders()
+                onClose?.()
+              }}
             />
           ))}
         </div>

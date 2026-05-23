@@ -2,9 +2,10 @@ import type { UUID } from './database'
 
 export interface CheckoutCustomer {
   full_name: string
-  email: string
+  email?: string
   phone?: string
   notes?: string
+  table_slug?: string
 }
 
 export interface CheckoutOrderItem {

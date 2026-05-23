@@ -19,6 +19,9 @@ export type OrderStatus =
 
 export type OrderType = 'menu' | 'store'
 
+export type PaymentMethod = 'cash' | 'transfer' | 'mercadopago'
+export type PaymentStatus = 'pending' | 'paid' | 'refunded'
+
 export type ReservationStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed'
 
 export type ProductCategory =
@@ -62,6 +65,10 @@ export interface OrderRow extends TimestampFields {
   order_type: OrderType
   total: Currency
   notes: string | null
+  table_number: number | null
+  table_slug: string | null
+  payment_method: PaymentMethod | null
+  payment_status: PaymentStatus
 }
 
 export interface OrderItemRow extends TimestampFields {

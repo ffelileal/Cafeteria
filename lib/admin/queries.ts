@@ -1,6 +1,6 @@
 // Server-only — never import from client components
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import type { OrderStatus, OrderType, ProductRow, ReservationStatus } from '@/types/database'
+import type { OrderStatus, OrderType, PaymentMethod, PaymentStatus, ProductRow, ReservationStatus } from '@/types/database'
 import type { OrderRow } from '@/app/admin/dashboard/_components/orders-table'
 
 // ── Date range ────────────────────────────────────────────────────────────────
@@ -81,6 +81,10 @@ export interface OrderDetail {
   total: number
   notes: string | null
   created_at: string
+  table_number: number | null
+  table_slug: string | null
+  payment_method: PaymentMethod | null
+  payment_status: PaymentStatus
   customer: { full_name: string; email: string } | null
   items: OrderItemDetail[]
 }
@@ -268,7 +272,7 @@ export async function getOrders(
   let query = supabaseAdmin
     .from('orders')
     .select(
-      'id, status, order_type, total, notes, created_at, customers(full_name, email), order_items(id, quantity, unit_price, subtotal, products(name, category))',
+      'id, status, order_type, total, notes, created_at, table_number, table_slug, payment_method, payment_status, customers(full_name, email), order_items(id, quantity, unit_price, subtotal, products(name, category))',
       { count: 'exact' }
     )
     .order('created_at', { ascending: false })
@@ -302,6 +306,10 @@ export async function getOrders(
     total: number
     notes: string | null
     created_at: string
+    table_number: number | null
+    table_slug: string | null
+    payment_method: string | null
+    payment_status: string
     customers: RawCustomer | RawCustomer[] | null
     order_items: RawItem[] | null
   }
@@ -330,6 +338,10 @@ export async function getOrders(
       total: Number(row.total),
       notes: row.notes,
       created_at: row.created_at,
+      table_number: row.table_number,
+      table_slug: row.table_slug,
+      payment_method: (row.payment_method ?? null) as PaymentMethod | null,
+      payment_status: (row.payment_status ?? 'pending') as PaymentStatus,
       customer: rawCustomer,
       items,
     }
@@ -352,7 +364,7 @@ export async function getRecentOrders(limit: number, range?: DateRange): Promise
   const { from, to } = toISORange(range)
   let q = supabaseAdmin
     .from('orders')
-    .select('id, status, order_type, total, notes, created_at, customers(full_name, email)')
+    .select('id, status, order_type, total, notes, created_at, table_number, table_slug, customers(full_name, email)')
     .order('created_at', { ascending: false })
     .limit(limit)
   if (from) q = q.gte('created_at', from)
@@ -366,6 +378,8 @@ export async function getRecentOrders(limit: number, range?: DateRange): Promise
     total: number
     notes: string | null
     created_at: string
+    table_number: number | null
+    table_slug: string | null
     customers:
       | { full_name: string; email: string }[]
       | { full_name: string; email: string }
@@ -376,6 +390,8 @@ export async function getRecentOrders(limit: number, range?: DateRange): Promise
     ...row,
     status: row.status as OrderRow['status'],
     order_type: row.order_type as OrderRow['order_type'],
+    table_number: row.table_number,
+    table_slug: row.table_slug,
     customers: Array.isArray(row.customers)
       ? (row.customers[0] ?? null)
       : row.customers,

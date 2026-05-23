@@ -12,6 +12,8 @@ export interface OrderRow {
   total: number
   notes: string | null
   created_at: string
+  table_number: number | null
+  table_slug: string | null
   customers: { full_name: string; email: string } | null
 }
 
@@ -150,6 +152,11 @@ export function OrdersTable({ orders }: OrdersTableProps) {
                 >
                   {order.order_type === 'menu' ? 'Menú' : 'Tienda'}
                 </span>
+                {order.table_number != null && (
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    Mesa {order.table_number}
+                  </p>
+                )}
               </td>
 
               {/* Total */}
